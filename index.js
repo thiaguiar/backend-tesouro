@@ -84,7 +84,7 @@ app.post("/webhook/kiwifi", (req, res) => {
   console.log("Headers:", req.headers);
   console.log("Body:", req.body);
 
-  const KIWI_TOKEN = "obnhpy4xsf2"; // pode ficar entre aspas SIM
+  const KIWI_TOKEN = process.env.KIWIFI_TOKEN;
 
   // 2. tentar pegar o token de vários lugares
   const headerToken =
