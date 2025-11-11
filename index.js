@@ -79,57 +79,67 @@ app.get("/progress/:userId", (req, res) => {
 
 // Rota que simula/recebe o webhook da Kiwifi
 app.post("/webhook/kiwifi", (req, res) => {
-  console.log("=== Webhook da Kiwifi chegou ===");
+  console.log("=== Webhook da Kiwify chegou ===");
   console.log("Headers:", req.headers);
   console.log("Body:", req.body);
   console.log("Query:", req.query);
 
-  // lê do Railway
-  const KIWI_TOKEN = process.env.KIWIFI_TOKEN;
-  console.log("Token do Railway (process.env.KIWIFI_TOKEN):", KIWI_TOKEN);
+  // tentamos pegar do Railway com variações de nome
+  const ENV_TOKEN =
+    process.env.KIWIFY_TOKEN ||
+    process.env.KIWIFI_TOKEN ||
+    process.env.KIWIFY_SIGNATURE;
 
-  // tenta pegar o token que a Kiwifi mandou
+  console.log("Token vindo do Railway:", ENV_TOKEN);
+
+  // o que a Kiwify está mandando de fato (vimos no log):
+  // ?signature=4159...
+  const querySignature = req.query.signature;
   const headerToken =
     req.headers["x-webhook-token"] ||
     req.headers["x-token"] ||
-    req.headers["x-kiwify-token"] ||
-    req.headers["x-kiwifi-token"];
-
+    req.headers["x-kiwify-token"];
   const bodyToken = req.body.token;
-  const queryToken = req.query.token;
 
-  const finalToken = headerToken || bodyToken || queryToken;
-  console.log("Token recebido da Kiwifi:", finalToken);
+  // prioridade: query > header > body
+  const incomingToken = querySignature || headerToken || bodyToken;
+  console.log("Token recebido da Kiwify (signature/header/body):", incomingToken);
 
-  // se não bater, 401
-  if (!finalToken || !KIWI_TOKEN || finalToken !== KIWI_TOKEN) {
+  // se tiver ENV_TOKEN configurado, valida
+  if (ENV_TOKEN && incomingToken !== ENV_TOKEN) {
     return res.status(401).json({
-      error: "invalid token",
-      received: finalToken,
-      expected: KIWI_TOKEN ? "***env set***" : null
+      error: "invalid token/signature",
+      received: incomingToken
     });
   }
 
-  const { email, status, plan } = req.body;
+  // se não tiver ENV_TOKEN, aceita assim mesmo (pra não travar desenvolvimento)
+  const { Customer, order_status, webhook_event_type } = req.body;
+
+  // precisamos do e-mail pra liberar o acesso depois
+  const email = Customer?.email;
+  const status = order_status; // no log veio "paid"
+  const plan = req.body?.Product?.product_name || "default";
 
   if (!email) {
-    return res.status(400).json({ error: "email is required" });
+    return res.status(400).json({ error: "email is required in webhook" });
   }
 
-  if (status === "paid") {
+  if (status === "paid" || webhook_event_type === "order_approved") {
     const userId = `user-${Date.now()}`;
     usersAccess[email.toLowerCase()] = {
       allowed: true,
       userId,
-      plan: plan || "default"
+      plan
     };
     return res.json({ ok: true, message: "user allowed", userId });
   }
 
+  // se não estiver pago ainda
   usersAccess[email.toLowerCase()] = {
     allowed: false,
     userId: null,
-    plan: plan || "default"
+    plan
   };
 
   return res.json({ ok: true, message: "user not allowed yet" });
