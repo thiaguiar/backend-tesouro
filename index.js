@@ -79,11 +79,23 @@ app.get("/progress/:userId", (req, res) => {
 
 // Rota que simula/recebe o webhook da Kiwifi
 app.post("/webhook/kiwifi", (req, res) => {
-  // 1. conferir o token vindo no header
-  const incomingToken = req.headers["x-webhook-token"]; // nome comum
-  const KIWI_TOKEN = "obnhpy4xsf2";
+  // 1. logar tudo que chegou
+  console.log("=== Webhook da Kiwifi chegou ===");
+  console.log("Headers:", req.headers);
+  console.log("Body:", req.body);
 
-  if (!incomingToken || incomingToken !== KIWI_TOKEN) {
+  const KIWI_TOKEN = "obnhpy4xsf2"; // pode ficar entre aspas SIM
+
+  // 2. tentar pegar o token de vários lugares
+  const headerToken =
+    req.headers["x-webhook-token"] ||
+    req.headers["x-token"] ||
+    req.headers["x-kiwifi-token"];
+  const bodyToken = req.body.token;
+  const finalToken = headerToken || bodyToken;
+
+  // 3. validar
+  if (!finalToken || finalToken !== KIWI_TOKEN) {
     return res.status(401).json({ error: "invalid token" });
   }
 
@@ -93,7 +105,6 @@ app.post("/webhook/kiwifi", (req, res) => {
     return res.status(400).json({ error: "email is required" });
   }
 
-  // 2. se estiver pago, libera o usuário
   if (status === "paid") {
     const userId = `user-${Date.now()}`;
     usersAccess[email.toLowerCase()] = {
@@ -104,7 +115,6 @@ app.post("/webhook/kiwifi", (req, res) => {
     return res.json({ ok: true, message: "user allowed", userId });
   }
 
-  // 3. se não estiver pago ainda, registra como não liberado
   usersAccess[email.toLowerCase()] = {
     allowed: false,
     userId: null,
