@@ -79,24 +79,35 @@ app.get("/progress/:userId", (req, res) => {
 
 // Rota que simula/recebe o webhook da Kiwifi
 app.post("/webhook/kiwifi", (req, res) => {
-  // 1. logar tudo que chegou
   console.log("=== Webhook da Kiwifi chegou ===");
   console.log("Headers:", req.headers);
   console.log("Body:", req.body);
+  console.log("Query:", req.query);
 
+  // lê do Railway
   const KIWI_TOKEN = process.env.KIWIFI_TOKEN;
+  console.log("Token do Railway (process.env.KIWIFI_TOKEN):", KIWI_TOKEN);
 
-  // 2. tentar pegar o token de vários lugares
+  // tenta pegar o token que a Kiwifi mandou
   const headerToken =
     req.headers["x-webhook-token"] ||
     req.headers["x-token"] ||
+    req.headers["x-kiwify-token"] ||
     req.headers["x-kiwifi-token"];
-  const bodyToken = req.body.token;
-  const finalToken = headerToken || bodyToken;
 
-  // 3. validar
-  if (!finalToken || finalToken !== KIWI_TOKEN) {
-    return res.status(401).json({ error: "invalid token" });
+  const bodyToken = req.body.token;
+  const queryToken = req.query.token;
+
+  const finalToken = headerToken || bodyToken || queryToken;
+  console.log("Token recebido da Kiwifi:", finalToken);
+
+  // se não bater, 401
+  if (!finalToken || !KIWI_TOKEN || finalToken !== KIWI_TOKEN) {
+    return res.status(401).json({
+      error: "invalid token",
+      received: finalToken,
+      expected: KIWI_TOKEN ? "***env set***" : null
+    });
   }
 
   const { email, status, plan } = req.body;
